@@ -1,1 +1,11 @@
-vendor/
+.git
+.gitignore
+.env
+.env.*
+vendor
+bin
+dist
+coverage
+*.log
+.DS_Store
+Thumbs.db
