@@ -1,1 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
 node_modules
+coverage
+.nyc_output
+npm-debug.log*
+*.log
+genproto.sh
+.DS_Store
+Thumbs.db

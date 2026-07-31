@@ -18,17 +18,7 @@
 
 const logger = require('./logger')
 
-if (process.env.DISABLE_PROFILER) {
-  logger.info("Profiler disabled.")
-} else {
-  logger.info("Profiler enabled.")
-  require('@google-cloud/profiler').start({
-    serviceContext: {
-      service: 'paymentservice',
-      version: '1.0.0'
-    }
-  });
-}
+logger.info("Profiler disabled.");
 
 
 if (process.env.ENABLE_TRACING == "1") {
