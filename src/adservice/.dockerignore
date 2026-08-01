@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.*
+.gradle
+build
+out
+.idea
+*.iml
+*.log
+genproto.sh
+gradlew.bat
+README.md
+.DS_Store
+Thumbs.db
