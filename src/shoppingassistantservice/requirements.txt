@@ -253,3 +253,6 @@ xxhash==3.6.0
     # via langgraph
 zstandard==0.25.0
     # via langsmith
+
+aiohttp==3.12.15
+    # via -r requirements.in
