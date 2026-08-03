@@ -92,15 +92,34 @@ jobs:
           NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
         run: |
-          $env:NEXUS_PASSWORD |
-            docker login localhost:8081 `
-              --username $env:NEXUS_USERNAME `
-              --password-stdin
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Nexus login failed."
+          if ([string]::IsNullOrWhiteSpace($env:NEXUS_USERNAME)) {
+            throw "NEXUS_USERNAME secret is empty."
           }
 
+          if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
+            throw "NEXUS_PASSWORD secret is empty."
+          }
+
+          $previousErrorActionPreference = $ErrorActionPreference
+          $ErrorActionPreference = "Continue"
+
+          try {
+            $env:NEXUS_PASSWORD |
+              docker login localhost:8081 `
+                --username $env:NEXUS_USERNAME `
+                --password-stdin
+
+            $loginExitCode = $LASTEXITCODE
+          }
+          finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+          }
+
+          if ($loginExitCode -ne 0) {
+            throw "Nexus login failed with exit code $loginExitCode."
+          }
+
+          Write-Host "Nexus login succeeded."
       - name: Pull image through Nexus proxy
         shell: powershell
         run: |
@@ -109,4 +128,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Nexus proxy pull failed."
           }
+
 
