@@ -24,9 +24,41 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout repository without marketplace action
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
 
+          git init
+          git config --global --add safe.directory $env:GITHUB_WORKSPACE
+
+          git remote remove origin 2>$null
+          git remote add origin "https://github.com/$($env:GITHUB_REPOSITORY).git"
+
+          $authValue = "x-access-token:$env:GH_TOKEN"
+          $authBytes = [System.Text.Encoding]::ASCII.GetBytes($authValue)
+          $authToken = [Convert]::ToBase64String($authBytes)
+
+          git `
+            -c "http.extraheader=AUTHORIZATION: basic $authToken" `
+            fetch `
+            --no-tags `
+            --prune `
+            --depth=1 `
+            origin `
+            $env:GITHUB_SHA
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git fetch failed."
+          }
+
+          git checkout --detach FETCH_HEAD
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git checkout failed."
+          }
       - name: Show runner information
         shell: powershell
         run: |
@@ -77,3 +109,4 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Nexus proxy pull failed."
           }
+
