@@ -1,0 +1,79 @@
+﻿name: CI Smoke Test
+
+on:
+  push:
+    branches:
+      - devops-lab
+    paths:
+      - ".github/workflows/ci-smoke-test.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - docker
+      - nexus
+
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Show runner information
+        shell: powershell
+        run: |
+          Write-Host "Runner: $env:RUNNER_NAME"
+          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Architecture: $env:RUNNER_ARCH"
+          git rev-parse --short HEAD
+
+      - name: Check Docker and Nexus
+        shell: powershell
+        run: |
+          docker version --format "Client={{.Client.Version}} | Server={{.Server.Version}}"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker engine is unavailable."
+          }
+
+          $nexus = docker ps `
+            --filter "name=^/nexus$" `
+            --format "{{.Names}} | {{.Status}}"
+
+          if ($LASTEXITCODE -ne 0 -or -not $nexus) {
+            throw "Nexus container is not running."
+          }
+
+          Write-Host "Nexus: $nexus"
+
+      - name: Login to Nexus
+        shell: powershell
+        env:
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        run: |
+          $env:NEXUS_PASSWORD |
+            docker login localhost:8081 `
+              --username $env:NEXUS_USERNAME `
+              --password-stdin
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Nexus login failed."
+          }
+
+      - name: Pull image through Nexus proxy
+        shell: powershell
+        run: |
+          docker pull localhost:8081/docker-proxy/library/alpine:3.23
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Nexus proxy pull failed."
+          }
