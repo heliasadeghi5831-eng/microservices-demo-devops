@@ -23,6 +23,9 @@ jobs:
 
     timeout-minutes: 15
 
+    env:
+      DOCKER_CONTEXT: desktop-linux
+
     steps:
       - name: Checkout repository without marketplace action
         shell: powershell
@@ -128,5 +131,4 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Nexus proxy pull failed."
           }
-
 
