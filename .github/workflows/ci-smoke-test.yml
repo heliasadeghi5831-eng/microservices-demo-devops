@@ -92,30 +92,31 @@ jobs:
       - name: Login to Nexus
         shell: powershell
         env:
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:NEXUS_USERNAME)) {
-            throw "NEXUS_USERNAME secret is empty."
-          }
-
           if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
             throw "NEXUS_PASSWORD secret is empty."
           }
+
+          # Remove accidental spaces or new lines around the secret.
+          $nexusPassword = $env:NEXUS_PASSWORD.Trim()
 
           $previousErrorActionPreference = $ErrorActionPreference
           $ErrorActionPreference = "Continue"
 
           try {
-            $env:NEXUS_PASSWORD |
+            $nexusPassword |
               docker login localhost:8081 `
-                --username $env:NEXUS_USERNAME `
+                --username nexus-ci `
                 --password-stdin
 
             $loginExitCode = $LASTEXITCODE
           }
           finally {
             $ErrorActionPreference = $previousErrorActionPreference
+
+            Remove-Variable nexusPassword `
+              -ErrorAction SilentlyContinue
           }
 
           if ($loginExitCode -ne 0) {
