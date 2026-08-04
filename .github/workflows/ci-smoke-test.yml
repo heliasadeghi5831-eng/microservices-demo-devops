@@ -89,6 +89,52 @@ jobs:
 
           Write-Host "Nexus: $nexus"
 
+      - name: Wait for Nexus registry
+        shell: powershell
+        run: |
+          $registryReady = $false
+
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            try {
+              $response = Invoke-WebRequest `
+                -Uri "http://127.0.0.1:8081/v2/" `
+                -UseBasicParsing `
+                -TimeoutSec 5
+
+              if ($response.StatusCode -eq 200) {
+                $registryReady = $true
+                break
+              }
+            }
+            catch {
+              $statusCode = $null
+
+              if (
+                $_.Exception.Response -and
+                $_.Exception.Response.StatusCode
+              ) {
+                $statusCode =
+                  [int]$_.Exception.Response.StatusCode
+              }
+
+              # 401 means the Docker registry is reachable
+              # and is correctly asking for authentication.
+              if ($statusCode -eq 401) {
+                $registryReady = $true
+                break
+              }
+            }
+
+            Write-Host "Waiting for Nexus registry... attempt $attempt of 30"
+            Start-Sleep -Seconds 10
+          }
+
+          if (-not $registryReady) {
+            docker logs nexus --tail 100
+            throw "Nexus Docker registry did not become ready."
+          }
+
+          Write-Host "Nexus Docker registry is ready."
       - name: Login to Nexus
         shell: powershell
         env:
@@ -106,7 +152,7 @@ jobs:
 
           try {
             $nexusPassword |
-              docker login localhost:8081 `
+              docker login 127.0.0.1:8081 `
                 --username nexus-ci `
                 --password-stdin
 
@@ -127,7 +173,7 @@ jobs:
       - name: Pull image through Nexus proxy
         shell: powershell
         run: |
-          docker pull localhost:8081/docker-proxy/library/alpine:3.23
+          docker pull 127.0.0.1:8081/docker-proxy/library/alpine:3.23
 
           if ($LASTEXITCODE -ne 0) {
             throw "Nexus proxy pull failed."
