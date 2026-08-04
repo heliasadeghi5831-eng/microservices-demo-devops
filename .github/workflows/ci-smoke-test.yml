@@ -147,6 +147,37 @@ jobs:
           # Remove accidental spaces or new lines around the secret.
           $nexusPassword = $env:NEXUS_PASSWORD.Trim()
 
+          # Temporary diagnostic: compare the secret without printing it.
+          $secretBytes =
+            [System.Text.Encoding]::UTF8.GetBytes(
+              $nexusPassword
+            )
+
+          $sha256 =
+            [System.Security.Cryptography.SHA256]::Create()
+
+          try {
+            $secretHashBytes =
+              $sha256.ComputeHash(
+                $secretBytes
+              )
+
+            $secretHash =
+              -join (
+                $secretHashBytes |
+                  ForEach-Object {
+                    $_.ToString("x2")
+                  }
+              )
+
+            Write-Host "CI secret characters: $($nexusPassword.Length)"
+            Write-Host "CI secret UTF8 bytes: $($secretBytes.Length)"
+            Write-Host "CI secret fingerprint: $($secretHash.Substring(0, 8))"
+          }
+          finally {
+            $sha256.Dispose()
+          }
+
           $previousErrorActionPreference = $ErrorActionPreference
           $ErrorActionPreference = "Continue"
 
