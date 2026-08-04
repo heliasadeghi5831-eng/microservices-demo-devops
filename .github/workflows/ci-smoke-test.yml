@@ -141,66 +141,98 @@ jobs:
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
-            throw "NEXUS_PASSWORD secret is empty."
+            throw "NEXUS_PASSWORD_V2 secret is empty."
           }
 
-          # Remove accidental spaces or new lines around the secret.
           $nexusPassword = $env:NEXUS_PASSWORD.Trim()
+          $fileId = [guid]::NewGuid().ToString("N")
 
-          # Temporary diagnostic: compare the secret without printing it.
-          $secretBytes =
-            [System.Text.Encoding]::UTF8.GetBytes(
-              $nexusPassword
+          $stdinFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "nexus-password-$fileId.txt"
+
+          $stdoutFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "docker-login-output-$fileId.txt"
+
+          $stderrFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "docker-login-error-$fileId.txt"
+
+          try {
+            # Create UTF-8 bytes without BOM.
+            $utf8NoBom =
+              [System.Text.UTF8Encoding]::new($false)
+
+            $passwordBytes =
+              $utf8NoBom.GetBytes(
+                $nexusPassword + "`n"
+              )
+
+            [System.IO.File]::WriteAllBytes(
+              $stdinFile,
+              $passwordBytes
             )
 
-          $sha256 =
-            [System.Security.Cryptography.SHA256]::Create()
+            $dockerPath =
+              (Get-Command docker.exe).Source
 
-          try {
-            $secretHashBytes =
-              $sha256.ComputeHash(
-                $secretBytes
-              )
+            $process = Start-Process `
+              -FilePath $dockerPath `
+              -ArgumentList @(
+                "login",
+                "127.0.0.1:8081",
+                "--username",
+                "nexus-ci",
+                "--password-stdin"
+              ) `
+              -RedirectStandardInput $stdinFile `
+              -RedirectStandardOutput $stdoutFile `
+              -RedirectStandardError $stderrFile `
+              -NoNewWindow `
+              -Wait `
+              -PassThru
 
-            $secretHash =
-              -join (
-                $secretHashBytes |
-                  ForEach-Object {
-                    $_.ToString("x2")
-                  }
-              )
+            $stdout =
+              Get-Content `
+                $stdoutFile `
+                -Raw `
+                -ErrorAction SilentlyContinue
 
-            Write-Host "CI secret characters: $($nexusPassword.Length)"
-            Write-Host "CI secret UTF8 bytes: $($secretBytes.Length)"
-            Write-Host "CI secret fingerprint: $($secretHash.Substring(0, 8))"
+            $stderr =
+              Get-Content `
+                $stderrFile `
+                -Raw `
+                -ErrorAction SilentlyContinue
+
+            if ($stdout) {
+              Write-Host $stdout.TrimEnd()
+            }
+
+            if ($stderr) {
+              Write-Host $stderr.TrimEnd()
+            }
+
+            if ($process.ExitCode -ne 0) {
+              throw "Nexus login failed with exit code $($process.ExitCode)."
+            }
+
+            Write-Host "Nexus login succeeded."
           }
           finally {
-            $sha256.Dispose()
-          }
+            $nexusPassword = $null
+            $passwordBytes = $null
 
-          $previousErrorActionPreference = $ErrorActionPreference
-          $ErrorActionPreference = "Continue"
-
-          try {
-            $nexusPassword |
-              docker login 127.0.0.1:8081 `
-                --username nexus-ci `
-                --password-stdin
-
-            $loginExitCode = $LASTEXITCODE
-          }
-          finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-
-            Remove-Variable nexusPassword `
+            Remove-Item `
+              $stdinFile, `
+              $stdoutFile, `
+              $stderrFile `
+              -Force `
               -ErrorAction SilentlyContinue
           }
-
-          if ($loginExitCode -ne 0) {
-            throw "Nexus login failed with exit code $loginExitCode."
-          }
-
-          Write-Host "Nexus login succeeded."
       - name: Pull image through Nexus proxy
         shell: powershell
         run: |
