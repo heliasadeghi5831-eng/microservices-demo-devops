@@ -92,7 +92,7 @@ jobs:
       - name: Login to Nexus
         shell: powershell
         env:
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
             throw "NEXUS_PASSWORD secret is empty."
