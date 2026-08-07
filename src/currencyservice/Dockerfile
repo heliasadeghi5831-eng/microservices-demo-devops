@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 ARG NODE_IMAGE
 
 FROM ${NODE_IMAGE} AS dependencies
@@ -6,7 +8,8 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-RUN npm ci --omit=dev && \
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm ci --omit=dev && \
     npm cache clean --force
 
 FROM ${NODE_IMAGE} AS runtime
