@@ -1,3 +1,5 @@
+# syntax=127.0.0.1:8081/docker-proxy/docker/dockerfile:1.7
+
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS build
@@ -14,7 +16,8 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY requirements.txt ./
 
 RUN --mount=type=cache,id=recommendationservice-pip,target=/root/.cache/pip \
-    pip install --no-compile -r requirements.txt
+    --mount=type=secret,id=pipconfig,target=/etc/pip.conf \
+    PIP_CONFIG_FILE=/etc/pip.conf pip install --no-compile --timeout 120 --retries 10 -r requirements.txt
 
 FROM ${PYTHON_IMAGE} AS runtime
 
