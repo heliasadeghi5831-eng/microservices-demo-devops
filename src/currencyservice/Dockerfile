@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=127.0.0.1:8081/docker-proxy/docker/dockerfile:1.7
 
 ARG NODE_IMAGE
 
