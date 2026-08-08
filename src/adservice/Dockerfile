@@ -1,3 +1,5 @@
+# syntax=127.0.0.1:8081/docker-proxy/docker/dockerfile:1.7
+
 ARG JDK_IMAGE
 ARG JRE_IMAGE
 
@@ -8,17 +10,20 @@ WORKDIR /workspace
 COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 
-ARG GRADLE_PROXY_HOST
-ARG GRADLE_PROXY_PORT=3128
+ENV GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
 
-ENV GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000 -Dhttp.proxyHost=${GRADLE_PROXY_HOST} -Dhttp.proxyPort=${GRADLE_PROXY_PORT} -Dhttps.proxyHost=${GRADLE_PROXY_HOST} -Dhttps.proxyPort=${GRADLE_PROXY_PORT}"
-
-RUN sed -i 's/^networkTimeout=.*/networkTimeout=120000/' \
-      gradle/wrapper/gradle-wrapper.properties && \
+RUN mkdir -p /root/.gradle && \
     chmod +x gradlew
 
-RUN for attempt in 1 2 3; do \
-      ./gradlew --no-daemon downloadRepos && exit 0; \
+RUN --mount=type=cache,id=adservice-gradle-cache,target=/root/.gradle/caches \
+    --mount=type=cache,id=adservice-gradle-wrapper,target=/root/.gradle/wrapper \
+    --mount=type=secret,id=gradleproperties,target=/root/.gradle/gradle.properties,required=true \
+    --mount=type=secret,id=gradleinit,target=/run/secrets/nexus.init.gradle,required=true \
+    for attempt in 1 2 3; do \
+      ./gradlew \
+        --no-daemon \
+        --init-script /run/secrets/nexus.init.gradle \
+        downloadRepos && exit 0; \
       echo "Gradle download failed, retrying..."; \
       sleep 10; \
     done; \
@@ -26,7 +31,14 @@ RUN for attempt in 1 2 3; do \
 
 COPY src ./src
 
-RUN ./gradlew --no-daemon installDist
+RUN --mount=type=cache,id=adservice-gradle-cache,target=/root/.gradle/caches \
+    --mount=type=cache,id=adservice-gradle-wrapper,target=/root/.gradle/wrapper \
+    --mount=type=secret,id=gradleproperties,target=/root/.gradle/gradle.properties,required=true \
+    --mount=type=secret,id=gradleinit,target=/run/secrets/nexus.init.gradle,required=true \
+    ./gradlew \
+      --no-daemon \
+      --init-script /run/secrets/nexus.init.gradle \
+      installDist
 
 
 FROM ${JRE_IMAGE} AS runtime
