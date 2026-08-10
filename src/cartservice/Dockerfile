@@ -1,3 +1,5 @@
+# syntax=127.0.0.1:8081/docker-proxy/docker/dockerfile:1.7
+
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
 ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0
 
@@ -8,7 +10,9 @@ WORKDIR /source
 COPY src/cartservice.csproj src/
 
 RUN --mount=type=cache,id=cartservice-nuget,target=/root/.nuget/packages \
+    --mount=type=secret,id=nugetconfig,target=/run/secrets/NuGet.Config,required=true \
     dotnet restore src/cartservice.csproj \
+    --configfile /run/secrets/NuGet.Config \
     --disable-parallel \
     -p:NuGetAudit=false
 
