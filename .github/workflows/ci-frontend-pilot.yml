@@ -1,0 +1,306 @@
+name: CI Frontend Pilot
+
+on:
+  push:
+    branches:
+      - devops-lab
+    paths:
+      - ".github/workflows/ci-frontend-pilot.yml"
+      - "src/frontend/**"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-build:
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - docker
+      - nexus
+
+    timeout-minutes: 15
+
+    env:
+      DOCKER_CONTEXT: desktop-linux
+
+    steps:
+      - name: Checkout repository without marketplace action
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+
+          git init
+          git config --global --add safe.directory $env:GITHUB_WORKSPACE
+
+          git remote remove origin 2>$null
+          git remote add origin "https://github.com/$($env:GITHUB_REPOSITORY).git"
+
+          $authValue = "x-access-token:$env:GH_TOKEN"
+          $authBytes = [System.Text.Encoding]::ASCII.GetBytes($authValue)
+          $authToken = [Convert]::ToBase64String($authBytes)
+
+          git `
+            -c "http.extraheader=AUTHORIZATION: basic $authToken" `
+            fetch `
+            --no-tags `
+            --prune `
+            --depth=1 `
+            origin `
+            $env:GITHUB_SHA
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git fetch failed."
+          }
+
+          git checkout --detach FETCH_HEAD
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git checkout failed."
+          }
+      - name: Show runner information
+        shell: powershell
+        run: |
+          Write-Host "Runner: $env:RUNNER_NAME"
+          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Architecture: $env:RUNNER_ARCH"
+          git rev-parse --short HEAD
+
+      - name: Check Docker and Nexus
+        shell: powershell
+        run: |
+          docker version --format "Client={{.Client.Version}} | Server={{.Server.Version}}"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker engine is unavailable."
+          }
+
+          $nexus = docker ps `
+            --filter "name=^/nexus$" `
+            --format "{{.Names}} | {{.Status}}"
+
+          if ($LASTEXITCODE -ne 0 -or -not $nexus) {
+            throw "Nexus container is not running."
+          }
+
+          Write-Host "Nexus: $nexus"
+
+      - name: Wait for Nexus registry
+        shell: powershell
+        run: |
+          $registryReady = $false
+
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            try {
+              $response = Invoke-WebRequest `
+                -Uri "http://127.0.0.1:8081/v2/" `
+                -UseBasicParsing `
+                -TimeoutSec 5
+
+              if ($response.StatusCode -eq 200) {
+                $registryReady = $true
+                break
+              }
+            }
+            catch {
+              $statusCode = $null
+
+              if (
+                $_.Exception.Response -and
+                $_.Exception.Response.StatusCode
+              ) {
+                $statusCode =
+                  [int]$_.Exception.Response.StatusCode
+              }
+
+              # 401 means the Docker registry is reachable
+              # and is correctly asking for authentication.
+              if ($statusCode -eq 401) {
+                $registryReady = $true
+                break
+              }
+            }
+
+            Write-Host "Waiting for Nexus registry... attempt $attempt of 30"
+            Start-Sleep -Seconds 10
+          }
+
+          if (-not $registryReady) {
+            docker logs nexus --tail 100
+            throw "Nexus Docker registry did not become ready."
+          }
+
+          Write-Host "Nexus Docker registry is ready."
+      - name: Login to Nexus
+        shell: powershell
+        env:
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
+            throw "NEXUS_PASSWORD_V2 secret is empty."
+          }
+
+          $nexusPassword = $env:NEXUS_PASSWORD.Trim()
+          $fileId = [guid]::NewGuid().ToString("N")
+
+          $stdinFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "nexus-password-$fileId.txt"
+
+          $stdoutFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "docker-login-output-$fileId.txt"
+
+          $stderrFile =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "docker-login-error-$fileId.txt"
+
+          try {
+            # Create UTF-8 bytes without BOM.
+            $utf8NoBom =
+              [System.Text.UTF8Encoding]::new($false)
+
+            $passwordBytes =
+              $utf8NoBom.GetBytes(
+                $nexusPassword + "`n"
+              )
+
+            [System.IO.File]::WriteAllBytes(
+              $stdinFile,
+              $passwordBytes
+            )
+
+            $dockerPath =
+              (Get-Command docker.exe).Source
+
+            $process = Start-Process `
+              -FilePath $dockerPath `
+              -ArgumentList @(
+                "login",
+                "127.0.0.1:8081",
+                "--username",
+                "nexus-ci",
+                "--password-stdin"
+              ) `
+              -RedirectStandardInput $stdinFile `
+              -RedirectStandardOutput $stdoutFile `
+              -RedirectStandardError $stderrFile `
+              -NoNewWindow `
+              -Wait `
+              -PassThru
+
+            $stdout =
+              Get-Content `
+                $stdoutFile `
+                -Raw `
+                -ErrorAction SilentlyContinue
+
+            $stderr =
+              Get-Content `
+                $stderrFile `
+                -Raw `
+                -ErrorAction SilentlyContinue
+
+            if ($stdout) {
+              Write-Host $stdout.TrimEnd()
+            }
+
+            if ($stderr) {
+              Write-Host $stderr.TrimEnd()
+            }
+
+            if ($process.ExitCode -ne 0) {
+              throw "Nexus login failed with exit code $($process.ExitCode)."
+            }
+
+            Write-Host "Nexus login succeeded."
+          }
+          finally {
+            $nexusPassword = $null
+            $passwordBytes = $null
+
+            Remove-Item `
+              $stdinFile, `
+              $stdoutFile, `
+              $stderrFile `
+              -Force `
+              -ErrorAction SilentlyContinue
+          }
+      - name: Pull image through Nexus proxy
+        shell: powershell
+        run: |
+          docker pull 127.0.0.1:8081/docker-proxy/library/alpine:3.23
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Nexus proxy pull failed."
+          }
+      - name: Build frontend image
+        shell: powershell
+        env:
+          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.4-alpine
+          RUNTIME_IMAGE: 127.0.0.1:8081/docker-proxy/library/alpine:3.23
+          GO_PROXY: http://host.docker.internal:8081/repository/go-proxy
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+
+          $image = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          Write-Host "Building image:"
+          Write-Host $image
+
+          docker build `
+            --progress plain `
+            --build-arg "GO_IMAGE=$env:GO_IMAGE" `
+            --build-arg "RUNTIME_IMAGE=$env:RUNTIME_IMAGE" `
+            --build-arg "GOPROXY=$env:GO_PROXY" `
+            --file "src/frontend/Dockerfile" `
+            --tag $image `
+            "src/frontend"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend image build failed."
+          }
+
+          docker image inspect $image `
+            --format "Image={{index .RepoTags 0}} | Size={{.Size}}"
+
+      - name: Push frontend image
+        shell: powershell
+        env:
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          $image = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          docker push $image
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend image push failed."
+          }
+
+          Write-Host "Image pushed successfully:"
+          Write-Host $image
+
+      - name: Verify frontend image from Nexus
+        shell: powershell
+        env:
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          $image = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          docker pull $image
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend verification pull failed."
+          }
+
+          docker image inspect $image `
+            --format "Image={{index .RepoTags 0}} | Digests={{json .RepoDigests}}"
