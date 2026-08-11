@@ -1,3 +1,5 @@
+# syntax=127.0.0.1:8081/docker-proxy/docker/dockerfile:1.7
+
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS build
@@ -14,7 +16,12 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY requirements.txt ./
 
 RUN --mount=type=cache,id=loadgenerator-pip,target=/root/.cache/pip \
-    pip install --no-compile -r requirements.txt
+    --mount=type=secret,id=pipconfig,target=/etc/pip.conf,required=true \
+    PIP_CONFIG_FILE=/etc/pip.conf \
+    pip install \
+    --no-compile \
+    --retries 10 \
+    --requirement requirements.txt
 
 FROM ${PYTHON_IMAGE} AS runtime
 
@@ -27,13 +34,13 @@ ENV PATH=/opt/venv/bin:$PATH \
     LOCUST_USERS=10 \
     LOCUST_SPAWN_RATE=1
 
-RUN groupadd --gid 10001 loadgenerator \
-    && useradd \
-        --uid 10001 \
-        --gid loadgenerator \
-        --create-home \
-        --shell /usr/sbin/nologin \
-        loadgenerator
+RUN groupadd --gid 10001 loadgenerator && \
+    useradd \
+    --uid 10001 \
+    --gid loadgenerator \
+    --create-home \
+    --shell /usr/sbin/nologin \
+    loadgenerator
 
 WORKDIR /app
 
