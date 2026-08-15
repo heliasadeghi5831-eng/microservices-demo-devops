@@ -18,6 +18,7 @@ spec:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/part-of: online-boutique
     spec:
+      automountServiceAccountToken: false
       {{- with $.Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- range . }}
