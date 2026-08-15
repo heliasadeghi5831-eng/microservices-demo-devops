@@ -1,0 +1,6 @@
+﻿apiVersion: v2
+name: online-boutique
+description: Independent Helm chart for the DevOps practice deployment
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

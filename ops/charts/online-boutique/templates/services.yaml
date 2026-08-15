@@ -1,0 +1,21 @@
+﻿{{- range $name, $service := .Values.services }}
+{{- if $service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/part-of: online-boutique
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: tcp
+      protocol: TCP
+      port: {{ $service.servicePort }}
+      targetPort: {{ $service.containerPort }}
+---
+{{- end }}
+{{- end }}

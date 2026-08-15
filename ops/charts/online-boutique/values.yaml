@@ -1,0 +1,212 @@
+global:
+  imageRegistry: "127.0.0.1:8081/docker-hosted/devops-practice"
+  imagePullPolicy: IfNotPresent
+
+  imagePullSecrets:
+    - nexus-registry
+
+services:
+
+  adservice:
+    enabled: true
+    image:
+      repository: adservice
+      tag: "fc9432dc9aec7a004cae4f1d45421136fb9dcab6"
+    containerPort: 9555
+    servicePort: 9555
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "160Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+  cartservice:
+    enabled: true
+    image:
+      repository: cartservice
+      tag: "5a84b5e94509ec19689fd48b30dd60f43a15b82d"
+    containerPort: 7070
+    servicePort: 7070
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "192Mi"
+  checkoutservice:
+    enabled: true
+    image:
+      repository: checkoutservice
+      tag: "e6e7aa404b2dad5a490a9b9138234af12fdedbf1"
+    containerPort: 5050
+    servicePort: 5050
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "128Mi"
+    env:
+      PORT: "5050"
+      ENABLE_TRACING: "0"
+      ENABLE_PROFILER: "0"
+      SHIPPING_SERVICE_ADDR: "shippingservice:50051"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      CART_SERVICE_ADDR: "cartservice:7070"
+      CURRENCY_SERVICE_ADDR: "currencyservice:7000"
+      EMAIL_SERVICE_ADDR: "emailservice:8080"
+      PAYMENT_SERVICE_ADDR: "paymentservice:50051"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  currencyservice:
+    enabled: true
+    image:
+      repository: currencyservice
+      tag: "d8332691faec9a3b6c5f32330aa38805801f879a"
+    containerPort: 7000
+    servicePort: 7000
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m"
+        memory: "128Mi"
+    env:
+      PORT: "7000"
+      ENABLE_TRACING: "0"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  emailservice:
+    enabled: true
+    image:
+      repository: emailservice
+      tag: "010dc923015634985c62fc5823ea96c0c2dae550"
+    containerPort: 8080
+    servicePort: 8080
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "96Mi"
+      limits:
+        cpu: "300m"
+        memory: "256Mi"
+    env:
+      PORT: "8080"
+      ENABLE_TRACING: "0"
+      DISABLE_PROFILER: "1"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  frontend:
+    enabled: true
+    image:
+      repository: frontend
+      tag: "aace6cb3c8cba635dceec52811b6e4d6a4289a05"
+    containerPort: 8080
+    servicePort: 8080
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "128Mi"
+    env:
+      PORT: "8080"
+      LISTEN_ADDR: "0.0.0.0"
+      ENABLE_TRACING: "0"
+      ENABLE_PROFILER: "0"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      CURRENCY_SERVICE_ADDR: "currencyservice:7000"
+      CART_SERVICE_ADDR: "cartservice:7070"
+      RECOMMENDATION_SERVICE_ADDR: "recommendationservice:8080"
+      CHECKOUT_SERVICE_ADDR: "checkoutservice:5050"
+      SHIPPING_SERVICE_ADDR: "shippingservice:50051"
+      AD_SERVICE_ADDR: "adservice:9555"
+      SHOPPING_ASSISTANT_SERVICE_ADDR: "shoppingassistantservice:8080"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  paymentservice:
+    enabled: true
+    image:
+      repository: paymentservice
+      tag: "74f626222489ab779e0078937f15ac493ba3dd32"
+    containerPort: 50051
+    servicePort: 50051
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m"
+        memory: "128Mi"
+    env:
+      PORT: "50051"
+      ENABLE_TRACING: "0"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  productcatalogservice:
+    enabled: true
+    image:
+      repository: productcatalogservice
+      tag: "545df4b2b3f4a2680cd4154b2cdb1c24c15c7b3e"
+    containerPort: 3550
+    servicePort: 3550
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m"
+        memory: "128Mi"
+  recommendationservice:
+    enabled: true
+    image:
+      repository: recommendationservice
+      tag: "7f41c265af13ed4c890268e5d29f48b629e2d165"
+    containerPort: 8080
+    servicePort: 8080
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "96Mi"
+      limits:
+        cpu: "300m"
+        memory: "256Mi"
+    env:
+      PORT: "8080"
+      ENABLE_TRACING: "0"
+      DISABLE_PROFILER: "1"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+
+  shippingservice:
+    enabled: true
+    image:
+      repository: shippingservice
+      tag: "f87924d01d681ceb994b72020012a01d160abd07"
+    containerPort: 50051
+    servicePort: 50051
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m"
+        memory: "128Mi"
+  shoppingassistantservice:
+    enabled: false
+    image:
+      repository: shoppingassistantservice
+      tag: "448b5317dd5a28124868b2c41929e5d427f6c1cb"
+    containerPort: 8080
+    servicePort: 8080
+
+loadgenerator:
+  enabled: false
+  image:
+    repository: loadgenerator
+    tag: "0f492c887261bbed696de8381df76c6b232980d9"
