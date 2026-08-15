@@ -25,8 +25,22 @@ spec:
         {{- end }}
       {{- end }}
 
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: {{ $name }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            {{ with $service.runtimeUser }}
+            runAsUser: {{ .uid }}
+            runAsGroup: {{ .gid }}
+            {{ end }}
+            capabilities:
+              drop:
+                - ALL
 
           image: "{{ $.Values.global.imageRegistry }}/{{ $service.image.repository }}:{{ $service.image.tag }}"
           imagePullPolicy: {{ $.Values.global.imagePullPolicy }}

@@ -35,6 +35,9 @@ services:
       limits:
         cpu: "300m"
         memory: "192Mi"
+    runtimeUser:
+      uid: 1654
+      gid: 1654
   checkoutservice:
     enabled: true
     image:
@@ -183,6 +186,9 @@ services:
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
       COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
 
+    runtimeUser:
+      uid: 10001
+      gid: 10001
   shippingservice:
     enabled: true
     image:
