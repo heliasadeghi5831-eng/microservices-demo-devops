@@ -216,3 +216,26 @@ loadgenerator:
   image:
     repository: loadgenerator
     tag: "0f492c887261bbed696de8381df76c6b232980d9"
+
+rabbitmq:
+  enabled: true
+
+  image:
+    repository: "127.0.0.1:8081/docker-proxy/library/rabbitmq"
+    digest: "sha256:44bf7eb50fe1765885659e49ccfdc775f8e531964d979321aee380a071f49f94"
+
+  replicas: 1
+
+  authSecretName: "rabbitmq-auth"
+
+  storage:
+    storageClassName: "standard"
+    size: "2Gi"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
