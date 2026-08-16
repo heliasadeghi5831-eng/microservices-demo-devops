@@ -1,4 +1,4 @@
-﻿{{- if .Values.rabbitmq.enabled }}
+{{- if .Values.rabbitmq.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -124,33 +124,17 @@ spec:
                   key: password
 
           startupProbe:
-            exec:
-              command:
-                - rabbitmq-diagnostics
-                - -q
-                - ping
+            tcpSocket:
+              port: amqp
             periodSeconds: 5
-            timeoutSeconds: 5
+            timeoutSeconds: 2
             failureThreshold: 60
 
           readinessProbe:
-            exec:
-              command:
-                - rabbitmq-diagnostics
-                - -q
-                - ping
+            tcpSocket:
+              port: amqp
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-
-          livenessProbe:
-            exec:
-              command:
-                - rabbitmq-diagnostics
-                - -q
-                - ping
-            periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 2
             failureThreshold: 3
 
           resources:
