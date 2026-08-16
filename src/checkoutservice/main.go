@@ -66,6 +66,7 @@ func init() {
 type checkoutService struct {
 	pb.UnimplementedCheckoutServiceServer
 
+	orderPublisher        *orderPublisher
 	productCatalogSvcAddr string
 	productCatalogSvcConn *grpc.ClientConn
 
@@ -77,9 +78,6 @@ type checkoutService struct {
 
 	shippingSvcAddr string
 	shippingSvcConn *grpc.ClientConn
-
-	emailSvcAddr string
-	emailSvcConn *grpc.ClientConn
 
 	paymentSvcAddr string
 	paymentSvcConn *grpc.ClientConn
@@ -108,21 +106,25 @@ func main() {
 	}
 
 	svc := new(checkoutService)
+
+	var rabbitMQAddr, rabbitMQUser, rabbitMQPassword string
+	mustMapEnv(&rabbitMQAddr, "RABBITMQ_ADDR")
+	mustMapEnv(&rabbitMQUser, "RABBITMQ_USER")
+	mustMapEnv(&rabbitMQPassword, "RABBITMQ_PASSWORD")
+	svc.orderPublisher = newOrderPublisher(rabbitMQAddr, rabbitMQUser, rabbitMQPassword)
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_SERVICE_ADDR")
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_SERVICE_ADDR")
 	mustMapEnv(&svc.cartSvcAddr, "CART_SERVICE_ADDR")
 	mustMapEnv(&svc.currencySvcAddr, "CURRENCY_SERVICE_ADDR")
-	mustMapEnv(&svc.emailSvcAddr, "EMAIL_SERVICE_ADDR")
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_SERVICE_ADDR")
 
 	mustConnGRPC(ctx, &svc.shippingSvcConn, svc.shippingSvcAddr)
 	mustConnGRPC(ctx, &svc.productCatalogSvcConn, svc.productCatalogSvcAddr)
 	mustConnGRPC(ctx, &svc.cartSvcConn, svc.cartSvcAddr)
 	mustConnGRPC(ctx, &svc.currencySvcConn, svc.currencySvcAddr)
-	mustConnGRPC(ctx, &svc.emailSvcConn, svc.emailSvcAddr)
 	mustConnGRPC(ctx, &svc.paymentSvcConn, svc.paymentSvcAddr)
 
-	log.Infof("service config: %+v", svc)
+	log.Info("checkout service dependencies initialized")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
@@ -269,11 +271,11 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
 	}
-
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		log.Warnf("failed to send order confirmation to %q: %+v", req.Email, err)
+	eventID, err := cs.orderPublisher.PublishOrderCreated(ctx, req.Email, orderResult)
+	if err != nil {
+		log.Errorf("failed to publish OrderCreated for order %q: %+v", orderResult.OrderId, err)
 	} else {
-		log.Infof("order confirmation email sent to %q", req.Email)
+		log.Infof("OrderCreated published: order_id=%q event_id=%q", orderResult.OrderId, eventID)
 	}
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
@@ -374,13 +376,6 @@ func (cs *checkoutService) chargeCard(ctx context.Context, amount *pb.Money, pay
 		return "", fmt.Errorf("could not charge the card: %+v", err)
 	}
 	return paymentResp.GetTransactionId(), nil
-}
-
-func (cs *checkoutService) sendOrderConfirmation(ctx context.Context, email string, order *pb.OrderResult) error {
-	_, err := pb.NewEmailServiceClient(cs.emailSvcConn).SendOrderConfirmation(ctx, &pb.SendOrderConfirmationRequest{
-		Email: email,
-		Order: order})
-	return err
 }
 
 func (cs *checkoutService) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {

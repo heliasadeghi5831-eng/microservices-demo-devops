@@ -48,6 +48,7 @@ COPY --from=dependencies --chown=10001:10001 \
 
 COPY --chown=10001:10001 \
     email_server.py \
+    order_consumer.py \
     logger.py \
     demo_pb2.py \
     demo_pb2_grpc.py \
