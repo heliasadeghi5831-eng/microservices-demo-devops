@@ -60,9 +60,16 @@ services:
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
       CART_SERVICE_ADDR: "cartservice:7070"
       CURRENCY_SERVICE_ADDR: "currencyservice:7000"
-      EMAIL_SERVICE_ADDR: "emailservice:8080"
+      RABBITMQ_ADDR: "rabbitmq:5672"
       PAYMENT_SERVICE_ADDR: "paymentservice:50051"
       COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+    secretEnv:
+      RABBITMQ_USER:
+        secretName: rabbitmq-auth
+        key: username
+      RABBITMQ_PASSWORD:
+        secretName: rabbitmq-auth
+        key: password
 
   currencyservice:
     enabled: true
