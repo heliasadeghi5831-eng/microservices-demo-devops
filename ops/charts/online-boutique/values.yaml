@@ -1,4 +1,4 @@
-global:
+﻿global:
   imageRegistry: "127.0.0.1:8081/docker-hosted/devops-practice"
   imagePullPolicy: IfNotPresent
 
@@ -42,7 +42,7 @@ services:
     enabled: true
     image:
       repository: checkoutservice
-      tag: "e6e7aa404b2dad5a490a9b9138234af12fdedbf1"
+      tag: "b2d4aaab76501d90cb7676f425009ec470c2eb40"
     containerPort: 5050
     servicePort: 5050
     resources:
@@ -87,7 +87,7 @@ services:
     enabled: true
     image:
       repository: emailservice
-      tag: "010dc923015634985c62fc5823ea96c0c2dae550"
+      tag: "b2d4aaab76501d90cb7676f425009ec470c2eb40"
     containerPort: 8080
     servicePort: 8080
     resources:
@@ -239,3 +239,15 @@ rabbitmq:
     limits:
       cpu: "500m"
       memory: "512Mi"
+
+orderConfirmationConsumer:
+  enabled: true
+  replicaCount: 1
+  emailServiceAddr: "emailservice:8080"
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "48Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"

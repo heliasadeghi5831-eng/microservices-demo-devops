@@ -77,11 +77,18 @@ spec:
 {{ toYaml . | indent 12 }}
           {{- end }}
 
-          {{- with $service.env }}
+          {{- if or $service.env $service.secretEnv }}
           env:
-            {{- range $key, $value := . }}
+            {{- range $key, $value := $service.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
+            {{- range $key, $value := $service.secretEnv }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $value.secretName | quote }}
+                  key: {{ $value.key | quote }}
             {{- end }}
           {{- end }}
 ---

@@ -1,0 +1,54 @@
+﻿{{- if .Values.orderConfirmationConsumer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-confirmation-consumer
+spec:
+  replicas: {{ .Values.orderConfirmationConsumer.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-confirmation-consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order-confirmation-consumer
+        app.kubernetes.io/part-of: online-boutique
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: order-confirmation-consumer
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.services.emailservice.image.repository }}:{{ .Values.services.emailservice.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command:
+            - /opt/venv/bin/python
+            - /app/order_consumer.py
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.rabbitmq.authSecretName | quote }}
+                  key: username
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.rabbitmq.authSecretName | quote }}
+                  key: password
+            - name: EMAIL_SERVICE_ADDR
+              value: {{ .Values.orderConfirmationConsumer.emailServiceAddr | quote }}
+          resources:
+{{ toYaml .Values.orderConfirmationConsumer.resources | indent 12 }}
+{{- end }}
