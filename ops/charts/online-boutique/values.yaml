@@ -1,4 +1,4 @@
-﻿global:
+global:
   imageRegistry: "127.0.0.1:8081/docker-hosted/devops-practice"
   imagePullPolicy: IfNotPresent
 
@@ -42,7 +42,7 @@ services:
     enabled: true
     image:
       repository: checkoutservice
-      tag: "3b5c80d027a81a042d7f4c47b030a49341de3584"
+      tag: "b2d4aaab76501d90cb7676f425009ec470c2eb40"
     containerPort: 5050
     servicePort: 5050
     resources:
