@@ -1,5 +1,6 @@
 import logging
 import os
+import sqlite3
 import time
 
 import grpc
@@ -54,12 +55,43 @@ def republish_properties(properties, retry_count):
     )
 
 
+def open_idempotency_db(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    db = sqlite3.connect(path, timeout=30)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS processed_events (
+            event_id TEXT PRIMARY KEY,
+            processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    db.commit()
+    return db
+
+
+def is_event_processed(db, event_id):
+    row = db.execute(
+        "SELECT 1 FROM processed_events WHERE event_id = ?",
+        (event_id,),
+    ).fetchone()
+    return row is not None
+
+
+def mark_event_processed(db, event_id):
+    db.execute(
+        "INSERT OR IGNORE INTO processed_events(event_id) VALUES (?)",
+        (event_id,),
+    )
+    db.commit()
+
+
 def consume():
     rabbit_host = required_env("RABBITMQ_HOST")
     rabbit_port = int(os.getenv("RABBITMQ_PORT", "5672"))
     rabbit_user = required_env("RABBITMQ_USER")
     rabbit_password = required_env("RABBITMQ_PASSWORD")
     email_service_addr = required_env("EMAIL_SERVICE_ADDR")
+    idempotency_db_path = required_env("IDEMPOTENCY_DB_PATH")
 
     credentials = pika.PlainCredentials(rabbit_user, rabbit_password)
 
@@ -140,9 +172,23 @@ def consume():
 
     email_channel = grpc.insecure_channel(email_service_addr)
     email_stub = demo_pb2_grpc.EmailServiceStub(email_channel)
+    idempotency_db = open_idempotency_db(idempotency_db_path)
 
     def handle_message(ch, method, properties, body):
-        event_id = properties.message_id or "unknown"
+        raw_event_id = properties.message_id
+        event_id = raw_event_id or "missing"
+
+        if raw_event_id and is_event_processed(
+            idempotency_db,
+            raw_event_id,
+        ):
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+
+            logger.warning(
+                "duplicate OrderCreated skipped event_id=%s",
+                event_id,
+            )
+            return
         headers = dict(properties.headers or {})
         retry_count = int(headers.get("x-retry-count", 0))
 
@@ -164,6 +210,12 @@ def consume():
             )
 
             email_stub.SendOrderConfirmation(request, timeout=10)
+
+            if raw_event_id:
+                mark_event_processed(
+                    idempotency_db,
+                    raw_event_id,
+                )
 
             ch.basic_ack(delivery_tag=method.delivery_tag)
 

@@ -1,4 +1,4 @@
-﻿{{- if .Values.orderConfirmationConsumer.enabled }}
+{{- if .Values.orderConfirmationConsumer.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,6 +16,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -49,6 +51,27 @@ spec:
                   key: password
             - name: EMAIL_SERVICE_ADDR
               value: {{ .Values.orderConfirmationConsumer.emailServiceAddr | quote }}
+            - name: IDEMPOTENCY_DB_PATH
+              value: {{ .Values.orderConfirmationConsumer.persistence.dbPath | quote }}
+          volumeMounts:
+            - name: idempotency-data
+              mountPath: {{ .Values.orderConfirmationConsumer.persistence.mountPath | quote }}
           resources:
 {{ toYaml .Values.orderConfirmationConsumer.resources | indent 12 }}
+      volumes:
+        - name: idempotency-data
+          persistentVolumeClaim:
+            claimName: order-confirmation-consumer-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: order-confirmation-consumer-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.orderConfirmationConsumer.persistence.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.orderConfirmationConsumer.persistence.size | quote }}
 {{- end }}

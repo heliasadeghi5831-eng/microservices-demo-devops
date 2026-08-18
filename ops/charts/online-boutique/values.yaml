@@ -251,6 +251,11 @@ orderConfirmationConsumer:
   enabled: true
   replicaCount: 1
   emailServiceAddr: "emailservice:8080"
+  persistence:
+    storageClass: "standard"
+    size: "1Gi"
+    mountPath: "/data/idempotency"
+    dbPath: "/data/idempotency/processed-events.db"
   resources:
     requests:
       cpu: "25m"
