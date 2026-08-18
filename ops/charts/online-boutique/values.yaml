@@ -94,7 +94,7 @@ services:
     enabled: true
     image:
       repository: emailservice
-      tag: "3b5c80d027a81a042d7f4c47b030a49341de3584"
+      tag: "0d24d5121cc18502f9ccd0749b6882c825d431e9"
     containerPort: 8080
     servicePort: 8080
     resources:
