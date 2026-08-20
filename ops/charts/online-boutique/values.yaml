@@ -42,7 +42,7 @@ services:
     enabled: true
     image:
       repository: checkoutservice
-      tag: "b2d4aaab76501d90cb7676f425009ec470c2eb40"
+      tag: "154e4975c918d0d798d09ea0251a242a2765af22"
     containerPort: 5050
     servicePort: 5050
     resources:
