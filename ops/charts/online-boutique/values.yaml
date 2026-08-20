@@ -127,6 +127,7 @@ services:
     env:
       PORT: "8080"
       LISTEN_ADDR: "0.0.0.0"
+      OTEL_SERVICE_NAME: "frontend"
       ENABLE_TRACING: "1"
       ENABLE_PROFILER: "0"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
