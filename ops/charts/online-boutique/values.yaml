@@ -54,6 +54,7 @@ services:
         memory: "128Mi"
     env:
       PORT: "5050"
+      OTEL_SERVICE_NAME: "checkoutservice"
       ENABLE_TRACING: "1"
       ENABLE_PROFILER: "0"
       SHIPPING_SERVICE_ADDR: "shippingservice:50051"
@@ -189,6 +190,7 @@ services:
         memory: "256Mi"
     env:
       PORT: "8080"
+      OTEL_SERVICE_NAME: "recommendationservice"
       ENABLE_TRACING: "1"
       DISABLE_PROFILER: "1"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
