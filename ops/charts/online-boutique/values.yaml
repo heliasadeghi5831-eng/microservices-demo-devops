@@ -54,7 +54,7 @@ services:
         memory: "128Mi"
     env:
       PORT: "5050"
-      ENABLE_TRACING: "0"
+      ENABLE_TRACING: "1"
       ENABLE_PROFILER: "0"
       SHIPPING_SERVICE_ADDR: "shippingservice:50051"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
@@ -62,7 +62,7 @@ services:
       CURRENCY_SERVICE_ADDR: "currencyservice:7000"
       RABBITMQ_ADDR: "rabbitmq:5672"
       PAYMENT_SERVICE_ADDR: "paymentservice:50051"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
     secretEnv:
       RABBITMQ_USER:
         secretName: rabbitmq-auth
@@ -87,8 +87,8 @@ services:
         memory: "128Mi"
     env:
       PORT: "7000"
-      ENABLE_TRACING: "0"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      ENABLE_TRACING: "1"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   emailservice:
     enabled: true
@@ -106,9 +106,9 @@ services:
         memory: "256Mi"
     env:
       PORT: "8080"
-      ENABLE_TRACING: "0"
+      ENABLE_TRACING: "1"
       DISABLE_PROFILER: "1"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   frontend:
     enabled: true
@@ -127,7 +127,7 @@ services:
     env:
       PORT: "8080"
       LISTEN_ADDR: "0.0.0.0"
-      ENABLE_TRACING: "0"
+      ENABLE_TRACING: "1"
       ENABLE_PROFILER: "0"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
       CURRENCY_SERVICE_ADDR: "currencyservice:7000"
@@ -137,7 +137,7 @@ services:
       SHIPPING_SERVICE_ADDR: "shippingservice:50051"
       AD_SERVICE_ADDR: "adservice:9555"
       SHOPPING_ASSISTANT_SERVICE_ADDR: "shoppingassistantservice:8080"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   paymentservice:
     enabled: true
@@ -155,8 +155,8 @@ services:
         memory: "128Mi"
     env:
       PORT: "50051"
-      ENABLE_TRACING: "0"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      ENABLE_TRACING: "1"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   productcatalogservice:
     enabled: true
@@ -188,10 +188,10 @@ services:
         memory: "256Mi"
     env:
       PORT: "8080"
-      ENABLE_TRACING: "0"
+      ENABLE_TRACING: "1"
       DISABLE_PROFILER: "1"
       PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
-      COLLECTOR_SERVICE_ADDR: "otel-collector:4317"
+      COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
     runtimeUser:
       uid: 10001
