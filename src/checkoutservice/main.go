@@ -164,8 +164,13 @@ func initTracing() {
 	defer cancel()
 
 	mustMapEnv(&collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &collectorConn, collectorAddr)
-
+	var err error
+	collectorConn, err = grpc.NewClient(
+		collectorAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(errors.Wrapf(err, "grpc: failed to connect %s", collectorAddr))
+	}
 	exporter, err := otlptracegrpc.New(
 		ctx,
 		otlptracegrpc.WithGRPCConn(collectorConn))
