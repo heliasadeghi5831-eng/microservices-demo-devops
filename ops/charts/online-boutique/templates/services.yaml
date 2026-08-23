@@ -1,4 +1,4 @@
-﻿{{- range $name, $service := .Values.services }}
+{{- range $name, $service := .Values.services }}
 {{- if $service.enabled }}
 apiVersion: v1
 kind: Service
@@ -12,7 +12,10 @@ spec:
   selector:
     app.kubernetes.io/name: {{ $name }}
   ports:
-    - name: tcp
+    - name: {{ default "tcp" $service.servicePortName }}
+{{ if $service.appProtocol }}
+      appProtocol: {{ $service.appProtocol }}
+{{ end }}
       protocol: TCP
       port: {{ $service.servicePort }}
       targetPort: {{ $service.containerPort }}

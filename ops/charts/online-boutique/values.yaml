@@ -14,6 +14,8 @@ services:
       tag: "fc9432dc9aec7a004cae4f1d45421136fb9dcab6"
     containerPort: 9555
     servicePort: 9555
+    servicePortName: grpc
+    appProtocol: grpc
     resources:
       requests:
         cpu: "100m"
