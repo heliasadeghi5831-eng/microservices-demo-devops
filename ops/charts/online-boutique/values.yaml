@@ -8,6 +8,7 @@ global:
 services:
 
   adservice:
+    istioInject: true
     enabled: true
     image:
       repository: adservice
@@ -114,6 +115,7 @@ services:
       COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   frontend:
+    istioInject: true
     enabled: true
     image:
       repository: frontend
@@ -269,3 +271,14 @@ orderConfirmationConsumer:
       cpu: "200m"
       memory: "128Mi"
 
+
+istio:
+  adservice:
+    strictMtls: true
+    trafficPolicy:
+      enabled: true
+      timeout: 2s
+      retries:
+        attempts: 2
+        perTryTimeout: 500ms
+        retryOn: "connect-failure,refused-stream,unavailable,cancelled"

@@ -17,6 +17,9 @@ spec:
       labels:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/part-of: online-boutique
+{{- if $service.istioInject }}
+        sidecar.istio.io/inject: "true"
+{{- end }}
     spec:
       automountServiceAccountToken: false
       {{- with $.Values.global.imagePullSecrets }}

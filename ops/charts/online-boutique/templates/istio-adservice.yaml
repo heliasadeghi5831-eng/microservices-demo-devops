@@ -1,0 +1,34 @@
+{{- if .Values.istio.adservice.strictMtls }}
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: adservice-strict-mtls
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adservice
+  mtls:
+    mode: STRICT
+---
+{{- end }}
+{{- if .Values.istio.adservice.trafficPolicy.enabled }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: adservice-traffic-policy
+spec:
+  hosts:
+    - adservice.devops-lab.svc.cluster.local
+  http:
+    - name: adservice-default
+      timeout: {{ .Values.istio.adservice.trafficPolicy.timeout }}
+      retries:
+        attempts: {{ .Values.istio.adservice.trafficPolicy.retries.attempts }}
+        perTryTimeout: {{ .Values.istio.adservice.trafficPolicy.retries.perTryTimeout }}
+        retryOn: {{ .Values.istio.adservice.trafficPolicy.retries.retryOn | quote }}
+      route:
+        - destination:
+            host: adservice.devops-lab.svc.cluster.local
+            port:
+              number: 9555
+{{- end }}
