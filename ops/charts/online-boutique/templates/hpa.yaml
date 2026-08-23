@@ -1,0 +1,43 @@
+{{- range $name, $service := .Values.services }}
+{{- if and $service.enabled $service.autoscaling $service.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/part-of: online-boutique
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+
+  minReplicas: {{ $service.autoscaling.minReplicas }}
+  maxReplicas: {{ $service.autoscaling.maxReplicas }}
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 30
+
+  metrics:
+    - type: ContainerResource
+      containerResource:
+        name: cpu
+        container: {{ $name }}
+        target:
+          type: Utilization
+          averageUtilization: {{ $service.autoscaling.targetCPUUtilizationPercentage }}
+---
+{{- end }}
+{{- end }}

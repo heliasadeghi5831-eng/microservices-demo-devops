@@ -8,7 +8,9 @@ metadata:
     app.kubernetes.io/name: {{ $name }}
     app.kubernetes.io/part-of: online-boutique
 spec:
+{{- if not (and $service.autoscaling $service.autoscaling.enabled) }}
   replicas: {{ default 1 $service.replicaCount }}
+{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}
