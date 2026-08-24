@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/profiler"
@@ -167,8 +169,51 @@ func main() {
 	handler = ensureSessionID(handler)                 // add session ID
 	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
 
-	log.Infof("starting server on %s:%s", addr, srvPort)
-	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
+	server := &http.Server{
+		Addr:    addr + ":" + srvPort,
+		Handler: handler,
+	}
+
+	serverErr := make(chan error, 1)
+
+	go func() {
+		log.Infof("starting server on %s:%s", addr, srvPort)
+		serverErr <- server.ListenAndServe()
+	}()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	select {
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server failed: %v", err)
+		}
+
+	case sig := <-signals:
+		log.Infof("shutdown signal received: %s", sig)
+
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			10*time.Second,
+		)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("graceful shutdown failed: %v", err)
+
+			if closeErr := server.Close(); closeErr != nil {
+				log.Errorf("forced server close failed: %v", closeErr)
+			}
+		}
+
+		if err := <-serverErr; err != nil && err != http.ErrServerClosed {
+			log.Errorf("HTTP server stopped with error: %v", err)
+		}
+
+		log.Info("HTTP server stopped gracefully")
+	}
 }
 func initStats(log logrus.FieldLogger) {
 	// TODO(arbrown) Implement OpenTelemtry stats
