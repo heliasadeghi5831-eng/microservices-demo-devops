@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   frontend-build:
@@ -325,3 +325,229 @@ jobs:
 
           docker image inspect $image `
             --format "Image={{index .RepoTags 0}} | Digests={{json .RepoDigests}}"
+      - name: Load frontend image into Kind
+        shell: powershell
+        env:
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          $image = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          Write-Host "Loading verified image into Kind:"
+          Write-Host $image
+
+          kind load docker-image `
+            $image `
+            --name devops-lab
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to load frontend image into Kind."
+          }
+
+      - name: Update frontend tag in GitOps
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+
+          $valuesPath = "ops/charts/online-boutique/values.yaml"
+
+          Write-Host "Fetching latest devops-lab branch..."
+
+          $authValue = "x-access-token:$env:GH_TOKEN"
+          $authBytes = [System.Text.Encoding]::ASCII.GetBytes($authValue)
+          $authToken = [Convert]::ToBase64String($authBytes)
+
+          git `
+            -c "http.extraheader=AUTHORIZATION: basic $authToken" `
+            fetch `
+            --no-tags `
+            origin `
+            devops-lab
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to fetch devops-lab before GitOps update."
+          }
+
+          $remoteHead = (git rev-parse FETCH_HEAD).Trim()
+
+          Write-Host "Workflow source SHA : $env:GITHUB_SHA"
+          Write-Host "Remote branch SHA   : $remoteHead"
+
+          if ($remoteHead -ne $env:GITHUB_SHA) {
+            throw "devops-lab moved while this CI run was executing. Refusing to deploy a stale image."
+          }
+
+          $valuesContent = Get-Content $valuesPath -Raw
+
+          $pattern = '(?ms)(^  frontend:\r?\n.*?^    image:\r?\n\s+repository:\s*frontend\r?\n\s+tag:\s*)"[^"]+"'
+
+          $regex = [regex]::new(
+            $pattern,
+            [System.Text.RegularExpressions.RegexOptions]::Multiline -bor
+            [System.Text.RegularExpressions.RegexOptions]::Singleline
+          )
+
+          $matches = $regex.Matches($valuesContent)
+
+          if ($matches.Count -ne 1) {
+            throw "Expected exactly one frontend image tag in values.yaml."
+          }
+
+          $updatedContent = $regex.Replace(
+            $valuesContent,
+            {
+              param($match)
+
+              $match.Groups[1].Value + '"' + $env:GITHUB_SHA + '"'
+            },
+            1
+          )
+
+          [System.IO.File]::WriteAllText(
+            (Resolve-Path $valuesPath),
+            $updatedContent,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+          Write-Host "Frontend Helm tag updated to:"
+          Write-Host $env:GITHUB_SHA
+
+          helm lint "ops/charts/online-boutique"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Helm validation failed after image tag update."
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add $valuesPath
+
+          git diff --cached --check
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitOps staged diff check failed."
+          }
+
+          $staged = git diff --cached --name-only
+
+          if (-not $staged) {
+            throw "No GitOps change was produced."
+          }
+
+          Write-Host "GitOps change:"
+          git diff --cached -- $valuesPath
+
+          git commit -m "Deploy frontend $env:GITHUB_SHA"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitOps commit failed."
+          }
+
+          $gitopsSha = (git rev-parse HEAD).Trim()
+
+          git `
+            -c "http.extraheader=AUTHORIZATION: basic $authToken" `
+            push `
+            origin `
+            HEAD:devops-lab
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitOps push failed."
+          }
+
+          Write-Host "GitOps commit pushed:"
+          Write-Host $gitopsSha
+
+          "GITOPS_COMMIT_SHA=$gitopsSha" |
+            Out-File `
+              -FilePath $env:GITHUB_ENV `
+              -Encoding utf8 `
+              -Append
+
+      - name: Verify Argo CD deployment
+        shell: powershell
+        env:
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          $expectedImage = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          Write-Host "Expected GitOps revision:"
+          Write-Host $env:GITOPS_COMMIT_SHA
+
+          Write-Host "Expected frontend image:"
+          Write-Host $expectedImage
+
+          $deadline = (Get-Date).AddMinutes(6)
+          $argoReady = $false
+
+          while ((Get-Date) -lt $deadline) {
+
+            kubectl `
+              -n argocd `
+              annotate application online-boutique-lab `
+              argocd.argoproj.io/refresh=hard `
+              --overwrite | Out-Null
+
+            Start-Sleep 5
+
+            $app = kubectl `
+              -n argocd `
+              get application online-boutique-lab `
+              -o json |
+              ConvertFrom-Json
+
+            $revision = $app.status.sync.revision
+            $sync = $app.status.sync.status
+            $health = $app.status.health.status
+
+            Write-Host "Argo revision=$revision sync=$sync health=$health"
+
+            if (
+              $revision -eq $env:GITOPS_COMMIT_SHA -and
+              $sync -eq "Synced" -and
+              $health -eq "Healthy"
+            ) {
+              $argoReady = $true
+              break
+            }
+
+            Start-Sleep 10
+          }
+
+          if (-not $argoReady) {
+            throw "Argo CD did not reach the expected GitOps revision in time."
+          }
+
+          kubectl `
+            -n devops-lab `
+            rollout status deployment/frontend `
+            --timeout=180s
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend rollout did not complete successfully."
+          }
+
+          $deployment = kubectl `
+            -n devops-lab `
+            get deployment frontend `
+            -o json |
+            ConvertFrom-Json
+
+          $frontendContainer = $deployment.spec.template.spec.containers |
+            Where-Object { $_.name -eq "frontend" } |
+            Select-Object -First 1
+
+          if (-not $frontendContainer) {
+            throw "Frontend container not found in deployment."
+          }
+
+          Write-Host "Live frontend image:"
+          Write-Host $frontendContainer.image
+
+          if ($frontendContainer.image -ne $expectedImage) {
+            throw "Live frontend image does not match the CI image."
+          }
+
+          Write-Host "Argo CD deployment verified successfully."
