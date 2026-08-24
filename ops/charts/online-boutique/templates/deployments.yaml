@@ -64,25 +64,53 @@ spec:
               protocol: TCP
 
           startupProbe:
+{{- if $service.healthPath }}
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: tcp
+{{- else }}
             tcpSocket:
               port: tcp
+{{- end }}
             periodSeconds: 2
             timeoutSeconds: 1
             failureThreshold: 30
 
           readinessProbe:
+{{- if $service.healthPath }}
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: tcp
+{{- else }}
             tcpSocket:
               port: tcp
+{{- end }}
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 3
 
           livenessProbe:
+{{- if $service.healthPath }}
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: tcp
+{{- else }}
             tcpSocket:
               port: tcp
+{{- end }}
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
+
+{{- with $service.preStopSleepSeconds }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - "sleep {{ . }}"
+{{- end }}
 
           {{- with $service.resources }}
           resources:
