@@ -234,6 +234,27 @@ jobs:
               -Force `
               -ErrorAction SilentlyContinue
           }
+      - name: Test frontend
+        shell: powershell
+        env:
+          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.4-alpine
+          GO_PROXY: http://host.docker.internal:8081/repository/go-proxy
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+
+          docker run --rm `
+            --volume "$($env:GITHUB_WORKSPACE):/workspace" `
+            --workdir /workspace/src/frontend `
+            --env "GOPROXY=$env:GO_PROXY" `
+            --env "GOSUMDB=off" `
+            $env:GO_IMAGE `
+            go test ./...
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Frontend tests failed."
+          }
+
+          Write-Host "Frontend tests passed."
       - name: Pull image through Nexus proxy
         shell: powershell
         run: |
