@@ -15,8 +15,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: {{ .maxUnavailable | quote }}
-      maxSurge: {{ .maxSurge | quote }}
+      maxUnavailable: {{ .maxUnavailable }}
+      maxSurge: {{ .maxSurge }}
 {{- end }}
   selector:
     matchLabels:
