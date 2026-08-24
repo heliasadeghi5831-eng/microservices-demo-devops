@@ -121,6 +121,9 @@ services:
       minReplicas: 1
       maxReplicas: 4
       targetCPUUtilizationPercentage: 30
+    pdb:
+      enabled: true
+      minAvailable: 1
     enabled: true
     image:
       repository: frontend
