@@ -11,6 +11,13 @@ spec:
 {{- if not (and $service.autoscaling $service.autoscaling.enabled) }}
   replicas: {{ default 1 $service.replicaCount }}
 {{- end }}
+{{- with $service.rollingUpdate }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .maxUnavailable | quote }}
+      maxSurge: {{ .maxSurge | quote }}
+{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}

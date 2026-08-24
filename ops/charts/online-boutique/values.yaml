@@ -115,6 +115,9 @@ services:
       COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   frontend:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
     istioInject: true
     autoscaling:
       enabled: true
