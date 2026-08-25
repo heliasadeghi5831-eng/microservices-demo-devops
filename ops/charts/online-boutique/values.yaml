@@ -115,6 +115,7 @@ services:
       COLLECTOR_SERVICE_ADDR: "otel-collector.observability.svc.cluster.local:4317"
 
   frontend:
+    readOnlyRootFilesystem: true
     healthPath: /_healthz
     preStopSleepSeconds: 5
     rollingUpdate:

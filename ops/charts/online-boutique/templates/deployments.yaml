@@ -47,6 +47,9 @@ spec:
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+            {{- if hasKey $service "readOnlyRootFilesystem" }}
+            readOnlyRootFilesystem: {{ $service.readOnlyRootFilesystem }}
+            {{- end }}
             {{ with $service.runtimeUser }}
             runAsUser: {{ .uid }}
             runAsGroup: {{ .gid }}
