@@ -27,7 +27,6 @@ jobs:
 
     env:
       DOCKER_CONTEXT: desktop-linux
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-config-nexus
     steps:
       - name: Checkout repository without marketplace action
         shell: powershell
@@ -142,6 +141,8 @@ jobs:
         env:
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
         run: |
+          $env:DOCKER_CONFIG = Join-Path $env:RUNNER_TEMP "docker-config-nexus"
+
           if (Test-Path $env:DOCKER_CONFIG) {
             Remove-Item `
               $env:DOCKER_CONFIG `
@@ -343,6 +344,8 @@ jobs:
         if: always()
         shell: powershell
         run: |
+          $env:DOCKER_CONFIG = Join-Path $env:RUNNER_TEMP "docker-config-nexus"
+
           docker logout 127.0.0.1:8081 2>$null
 
           Remove-Item `
