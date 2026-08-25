@@ -256,6 +256,69 @@ jobs:
           docker image inspect $image `
             --format "Image={{index .RepoTags 0}} | Size={{.Size}}"
 
+      - name: Trivy vulnerability gate
+        shell: powershell
+        env:
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
+          IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
+        run: |
+          $trivyImage = "127.0.0.1:8081/docker-proxy/aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969"
+          $dbRepository = "host.docker.internal:8081/docker-proxy/aquasec/trivy-db:2"
+          $cacheDir = Join-Path $env:RUNNER_TEMP "trivy-cache"
+          $image = "$env:IMAGE_REPOSITORY`:$env:GITHUB_SHA"
+
+          try {
+            Remove-Item $cacheDir -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+
+            docker pull $trivyImage
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to pull pinned Trivy image."
+            }
+
+            $env:TRIVY_USERNAME = "nexus-ci"
+            $env:TRIVY_PASSWORD = $env:NEXUS_PASSWORD
+
+            docker run --rm `
+              --volume "${cacheDir}:/root/.cache/trivy" `
+              --env TRIVY_USERNAME `
+              --env TRIVY_PASSWORD `
+              $trivyImage `
+              image `
+              --download-db-only `
+              --db-repository $dbRepository `
+              --insecure
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to download Trivy DB through Nexus."
+            }
+
+            docker run --rm `
+              --volume "/var/run/docker.sock:/var/run/docker.sock" `
+              --volume "${cacheDir}:/root/.cache/trivy" `
+              $trivyImage `
+              image `
+              --skip-db-update `
+              --scanners vuln `
+              --severity HIGH,CRITICAL `
+              --ignore-unfixed `
+              --exit-code 1 `
+              $image
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Security gate failed: HIGH or CRITICAL vulnerability detected."
+            }
+
+            Write-Host "Trivy security gate passed: 0 HIGH / 0 CRITICAL."
+          }
+          finally {
+            Remove-Item $cacheDir -Recurse -Force -ErrorAction SilentlyContinue
+            $env:TRIVY_USERNAME = $null
+            $env:TRIVY_PASSWORD = $null
+            $env:NEXUS_PASSWORD = $null
+          }
+
       - name: Push frontend image
         shell: powershell
         env:
