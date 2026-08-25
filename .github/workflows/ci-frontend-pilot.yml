@@ -199,7 +199,7 @@ jobs:
       - name: Test frontend
         shell: powershell
         env:
-          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.4-alpine
+          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.6-alpine
           GO_PROXY: http://host.docker.internal:8081/repository/go-proxy
         run: |
           Set-Location $env:GITHUB_WORKSPACE
@@ -228,7 +228,7 @@ jobs:
       - name: Build frontend image
         shell: powershell
         env:
-          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.4-alpine
+          GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.6-alpine
           RUNTIME_IMAGE: 127.0.0.1:8081/docker-proxy/library/alpine:3.23
           GO_PROXY: http://host.docker.internal:8081/repository/go-proxy
           IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
