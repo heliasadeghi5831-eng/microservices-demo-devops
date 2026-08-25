@@ -133,7 +133,7 @@ services:
     enabled: true
     image:
       repository: frontend
-      tag: "5a59c29816b0a5563171855bdcfe0543819ba787"
+      tag: "570c2c2a863df7e85fd16d0c0a4e1b3abdafbff4"
     containerPort: 8080
     servicePort: 8080
     resources:
