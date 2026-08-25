@@ -11,10 +11,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-
+  contents: read
 jobs:
   frontend-build:
+    permissions:
+      contents: read
     runs-on:
       - self-hosted
       - Windows
@@ -26,7 +27,7 @@ jobs:
 
     env:
       DOCKER_CONTEXT: desktop-linux
-
+      DOCKER_CONFIG: ${{ runner.temp }}/docker-config-nexus
     steps:
       - name: Checkout repository without marketplace action
         shell: powershell
@@ -141,6 +142,19 @@ jobs:
         env:
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_V2 }}
         run: |
+          if (Test-Path $env:DOCKER_CONFIG) {
+            Remove-Item `
+              $env:DOCKER_CONFIG `
+              -Recurse `
+              -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $env:DOCKER_CONFIG `
+            -Force |
+            Out-Null
+
           if ([string]::IsNullOrWhiteSpace($env:NEXUS_PASSWORD)) {
             throw "NEXUS_PASSWORD_V2 secret is empty."
           }
@@ -325,6 +339,94 @@ jobs:
 
           docker image inspect $image `
             --format "Image={{index .RepoTags 0}} | Digests={{json .RepoDigests}}"
+      - name: Cleanup Nexus Docker credentials
+        if: always()
+        shell: powershell
+        run: |
+          docker logout 127.0.0.1:8081 2>$null
+
+          Remove-Item `
+            $env:DOCKER_CONFIG `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          if (Test-Path $env:DOCKER_CONFIG) {
+            throw "Temporary Docker credential directory still exists."
+          }
+
+          $defaultConfig = Join-Path $env:USERPROFILE ".docker\config.json"
+
+          if (Test-Path $defaultConfig) {
+            $defaultDockerConfig = Get-Content $defaultConfig -Raw | ConvertFrom-Json
+
+            if ($defaultDockerConfig.auths) {
+              $defaultRegistryKeys = @(
+                $defaultDockerConfig.auths.PSObject.Properties |
+                  ForEach-Object { $_.Name }
+              )
+
+              if ($defaultRegistryKeys -contains "127.0.0.1:8081") {
+                throw "Nexus credential leaked into persistent Docker config."
+              }
+            }
+          }
+
+          Write-Host "Temporary Nexus credentials cleaned successfully."
+
+  frontend-deploy:
+    needs: frontend-build
+    permissions:
+      contents: write
+
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - docker
+      - nexus
+
+    timeout-minutes: 15
+
+    env:
+      DOCKER_CONTEXT: desktop-linux
+
+    steps:
+      - name: Checkout repository without marketplace action
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+
+          git init
+          git config --global --add safe.directory $env:GITHUB_WORKSPACE
+
+          git remote remove origin 2>$null
+          git remote add origin "https://github.com/$($env:GITHUB_REPOSITORY).git"
+
+          $authValue = "x-access-token:$env:GH_TOKEN"
+          $authBytes = [System.Text.Encoding]::ASCII.GetBytes($authValue)
+          $authToken = [Convert]::ToBase64String($authBytes)
+
+          git `
+            -c "http.extraheader=AUTHORIZATION: basic $authToken" `
+            fetch `
+            --no-tags `
+            --prune `
+            --depth=1 `
+            origin `
+            $env:GITHUB_SHA
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git fetch failed."
+          }
+
+          git checkout --detach FETCH_HEAD
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git checkout failed."
+          }
       - name: Load frontend image into Kind
         shell: powershell
         env:
