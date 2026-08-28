@@ -229,7 +229,6 @@ jobs:
         shell: powershell
         env:
           GO_IMAGE: 127.0.0.1:8081/docker-proxy/library/golang:1.26.6-alpine
-          RUNTIME_IMAGE: 127.0.0.1:8081/docker-proxy/library/alpine:3.23
           GO_PROXY: http://host.docker.internal:8081/repository/go-proxy
           IMAGE_REPOSITORY: 127.0.0.1:8081/docker-hosted/devops-practice/frontend
         run: |
@@ -243,7 +242,6 @@ jobs:
           docker build `
             --progress plain `
             --build-arg "GO_IMAGE=$env:GO_IMAGE" `
-            --build-arg "RUNTIME_IMAGE=$env:RUNTIME_IMAGE" `
             --build-arg "GOPROXY=$env:GO_PROXY" `
             --file "src/frontend/Dockerfile" `
             --tag $image `
