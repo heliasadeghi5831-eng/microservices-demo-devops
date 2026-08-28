@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: online-boutique-frontend-alerts
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: online-boutique.frontend
+      rules:
+        - alert: FrontendHigh5xxRate
+          expr: |
+            (
+              sum(rate(istio_requests_total{
+                source_workload="frontend",
+                response_code=~"5.."
+              }[2m]))
+              /
+              clamp_min(
+                sum(rate(istio_requests_total{
+                  source_workload="frontend"
+                }[2m])),
+                0.001
+              )
+            ) > 0.20
+            and
+            sum(rate(istio_requests_total{
+              source_workload="frontend"
+            }[2m])) > 0.05
+          for: 30s
+          labels:
+            severity: warning
+            service: frontend
+          annotations:
+            summary: Frontend has a high 5xx error rate
+            description: More than 20% of frontend outbound requests are returning 5xx responses.
